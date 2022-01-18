@@ -1,0 +1,12 @@
+*~
+*.o
+*.a
+*.exe
+*.out
+
+*.new
+*.meta
+*001-001
+
+.idea
+.vscode
