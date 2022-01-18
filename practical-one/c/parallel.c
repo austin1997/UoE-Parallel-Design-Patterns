@@ -107,15 +107,13 @@ int main(int argc, char *argv[])
     for (k = 0; k < MAX_ITERATIONS; k++)
     {
         // The halo swapping will likely need to go in here
-        // MPI_Request requests[4];
-        // MPI_Status status[4];
-        // MPI_Isend(&u_k[mem_size_y + 1], ny, MPI_DOUBLE, up_rank, 0, MPI_COMM_WORLD, &requests[0]);
-        // MPI_Irecv(&u_k[1], ny, MPI_DOUBLE, up_rank, 0, MPI_COMM_WORLD, &requests[1]);
-        // MPI_Isend(&u_k[subx * mem_size_y + 1], ny, MPI_DOUBLE, down_rank, 0, MPI_COMM_WORLD, &requests[2]);
-        // MPI_Irecv(&u_k[(subx + 1) * mem_size_y + 1], ny, MPI_DOUBLE, down_rank, 0, MPI_COMM_WORLD, &requests[3]);
-        // MPI_Waitall(4, requests, status);
-        MPI_Sendrecv(&u_k[mem_size_y], mem_size_y, MPI_DOUBLE, up_rank, 0, &u_k[0], mem_size_y, MPI_DOUBLE, up_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Sendrecv(&u_k[subx * mem_size_y], mem_size_y, MPI_DOUBLE, down_rank, 0, &u_k[(subx + 1) * mem_size_y], mem_size_y, MPI_DOUBLE, down_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Request requests[4];
+        MPI_Status status[4];
+        MPI_Isend(&u_k[mem_size_y + 1], ny, MPI_DOUBLE, up_rank, 0, MPI_COMM_WORLD, &requests[0]);
+        MPI_Irecv(&u_k[1], ny, MPI_DOUBLE, up_rank, 0, MPI_COMM_WORLD, &requests[1]);
+        MPI_Isend(&u_k[subx * mem_size_y + 1], ny, MPI_DOUBLE, down_rank, 0, MPI_COMM_WORLD, &requests[2]);
+        MPI_Irecv(&u_k[(subx + 1) * mem_size_y + 1], ny, MPI_DOUBLE, down_rank, 0, MPI_COMM_WORLD, &requests[3]);
+        MPI_Waitall(4, requests, status);
         rnorm = 0.0;
         // Calculates the current residual norm
         for (j = 1; j <= subx; j++)
