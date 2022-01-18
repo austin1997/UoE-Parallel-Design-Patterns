@@ -108,12 +108,20 @@ int main(int argc, char *argv[])
     {
         // The halo swapping will likely need to go in here
         MPI_Request requests[4];
-        MPI_Status status[4];
         MPI_Isend(&u_k[mem_size_y + 1], ny, MPI_DOUBLE, up_rank, 0, MPI_COMM_WORLD, &requests[0]);
         MPI_Irecv(&u_k[1], ny, MPI_DOUBLE, up_rank, 0, MPI_COMM_WORLD, &requests[1]);
         MPI_Isend(&u_k[subx * mem_size_y + 1], ny, MPI_DOUBLE, down_rank, 0, MPI_COMM_WORLD, &requests[2]);
         MPI_Irecv(&u_k[(subx + 1) * mem_size_y + 1], ny, MPI_DOUBLE, down_rank, 0, MPI_COMM_WORLD, &requests[3]);
-        MPI_Waitall(4, requests, status);
+        // Do the Jacobi iteration
+        for (j = 1 + 1; j <= subx - 1; j++)
+        {
+            for (i = 1; i <= ny; i++)
+            {
+                u_kp1[i + (j * mem_size_y)] = 0.25 * (u_k[(i - 1) + (j * mem_size_y)] + u_k[(i + 1) + (j * mem_size_y)] +
+                                                      u_k[i + ((j - 1) * mem_size_y)] + u_k[i + ((j + 1) * mem_size_y)]);
+            }
+        }
+        MPI_Waitall(4, requests, MPI_STATUS_IGNORE);
         rnorm = 0.0;
         // Calculates the current residual norm
         for (j = 1; j <= subx; j++)
@@ -125,25 +133,34 @@ int main(int argc, char *argv[])
                                     2);
             }
         }
+
         // In the parallel version you will be operating on only part of the domain in each process, so you will need to do some
         // form of reduction to determine the global rnorm before square rooting it
-        MPI_Allreduce(MPI_IN_PLACE, &rnorm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Request reduce_request;
+        MPI_Iallreduce(MPI_IN_PLACE, &rnorm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD, &reduce_request);
+        // Do the Jacobi iteration
+        if (subx > 0) {
+            j = 1;
+            for (i = 1; i <= ny; i++)
+            {
+                u_kp1[i + (j * mem_size_y)] = 0.25 * (u_k[(i - 1) + (j * mem_size_y)] + u_k[(i + 1) + (j * mem_size_y)] +
+                                                        u_k[i + ((j - 1) * mem_size_y)] + u_k[i + ((j + 1) * mem_size_y)]);
+            }
+            j = subx;
+            for (i = 1; i <= ny; i++)
+            {
+                u_kp1[i + (j * mem_size_y)] = 0.25 * (u_k[(i - 1) + (j * mem_size_y)] + u_k[(i + 1) + (j * mem_size_y)] +
+                                                        u_k[i + ((j - 1) * mem_size_y)] + u_k[i + ((j + 1) * mem_size_y)]);
+            }
+        }
+        MPI_Wait(&reduce_request, MPI_STATUS_IGNORE);       
         norm = sqrt(rnorm) / bnorm;
 
         if (norm < convergence_accuracy)
             break;
         if (max_its > 0 && k >= max_its)
             break;
-
-        // Do the Jacobi iteration
-        for (j = 1; j <= subx; j++)
-        {
-            for (i = 1; i <= ny; i++)
-            {
-                u_kp1[i + (j * mem_size_y)] = 0.25 * (u_k[(i - 1) + (j * mem_size_y)] + u_k[(i + 1) + (j * mem_size_y)] +
-                                                      u_k[i + ((j - 1) * mem_size_y)] + u_k[i + ((j + 1) * mem_size_y)]);
-            }
-        }
+        
         // Swap data structures round for the next iteration
         temp = u_kp1;
         u_kp1 = u_k;
